@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Cloudwatch Alarm Stack
+Parameters:
+  InstanceId:
+    Description: Instance Id for which alarm needs to be applied
+    Type: String
+  TopicName:
+    Description: Name of the alarm notification sns topic
+    Type: String
+  System:
+    Descfription: 'system identifier. (Example: BH)'
+    Type: String
+    AllowedPattern: .+
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - dev
+      - tst
+      - prd
+  AdminContactTag:
+    Description: Service/App point of contact
+    Type: String
+    Default: sivaprasad.jakkula@bakerhughes.com
+  ServiceIdTag:
+    Description: Service/App identifier
+    Type: String
+    Default: DT_DA_RPA
+  
+  ServiceDataTag:
+    Description: Service/App properties
+    Type: String
+Resources:
+  AlarmTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      TopicName: !Sub "${System}-${Environment}-${AWS::Region}-sns-${TopicName}"
+      DisplayName: !Sub "${System}-${Environment}-${AWS::Region}-sns-${TopicName}"
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+  LowCPUUsageWarning:
+    Type: AWS::Cloudwatch::Alarm
+    Properties:
+      AlarmDescription: CPU usage is low. send warning
+      AlarmName: !Sub '${system}-${Environment}-cw-alarm-low-cpu-warning'
+      ComparisionOperator: LessThanOrEqualToThrshold
+      EvalutionPeriods: 5
+      DatapointsToAlarm: 5
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Period: 60
+      Statistic: Average
+      Threshold: 10
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: AlarmTopic
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+  LowCPUUsageCritical:
+    Type: AWS::Cloudwatch::Alarm
+    Properties:
+      AlarmDescription: CPU usage is low for 8 hours. Terminating instance
+      AlarmName: !Sub '${system}-${Environment}-cw-alarm-low-cpu-critical'
+      ComparisionOperator: LessThanOrEqualToThrshold
+      EvalutionPeriods: 400
+      DatapointsToAlarm: 5
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Period: 60
+      Statistic: Average
+      Threshold: 1
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub
+  'arn:aws:swf:${AWS::Region}:${AWS::AccountId}:action/actions/AWS_EC2.InstanceId.Stop/1.0'
+        - Ref: AlarmTopic
+      Dimension:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+  Outputs:
+    AlarmTopicArn:
+      Description: Alarm Topic Arn
+      Value: !Ref AlarmTopic          
