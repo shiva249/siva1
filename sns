@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: PTEIT-YMS SNS topic and queue
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups:
+      - Label:
+          default: Standard Parameters
+        Parameters:
+          - TopicName
+          - QueueName
+          - System
+          - Environment
+          - AdminContactTag
+          - ServiceIdTag
+          - ServiceDataTag
+      - Label:
+          default: Topic Configuration
+        Parameters:
+          - PublisherIAMPrincipal
+      - Label:
+          default: Queue Configuration
+        Parameters:
+          - QueueType
+          - DefaultVisibilityTimeout
+          - DefaultMessageRetentionPeriod
+          - DefaultMaximumMessageSize
+
+Parameters:
+  TopicName:
+    Description: Name of the YMS topic
+    Type: String
+  
+  QueueName:
+    Description: Name of the YMS Subscriber queue
+    Type: String
+  
+  PublisherIAMPrincipal:
+    Description: Arn of the Principal user/role/account that publishes to sns topic
+    Type: String
+  
+  DefaultVisibilityTimeout:
+    Description: Visibility  Timmeout Max 12hours(43200 seconds)
+    Type: Number
+    Default: 30
+    MinValue: 0
+    MaxValue: 43200
+  
+  DefaultMessageRetentionPeriod:
+    Description: >-
+      The number of seconds that Amazon SQS retains a message You can specify an
+      integer value from 60 seconds (1 minute)  to 1,209,600 seconds (14 days). 
+      The default value is 345,600 seconds (4 days).
+    Type: Number
+    Default: 345600
+    MinValue: 60
+    MaxValue: 1209600
+  
+  DefaultMaximumMessageSize:
+    Description: >-
+      The limit of how many bytes that a message can contain before Amazon SQS
+      rejects it. You can specify an integer value from 1,024 bytes (1 KiB) to
+      262,144 bytes (256 KiB).  The default value is 262,144 (256 KiB).
+    Type: Number
+    Default: 262144
+    MinValue: 1024
+    MaxValue: 262144
+
+  System:
+    Description: System Identifier
+    Type: String
+    Default: qc-pteit-yms
+    AllowedValues:
+      - qc-pteit-yms
+  
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - sbx
+      - dev
+      - tst
+      - ppr
+      - stg
+      - sup
+      - uat
+      - prd
+  
+  AdminContactTag:
+    Description: Service/App point of contact
+    Type: String
+    Default: siva
+  
+  ServiceIdTag:
+    Description: Service/App identifier
+    Type: String
+    Default: something
+  
+  ServiceDataTag:
+    Description: Service/App properties
+    Type: String
+
+Resources:
+  YMSTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      TopicName: !Sub "${System}-${Environment}-${AWS::Region}-sns-${TopicName}"
+      DisplayName: !Sub "${System}-${Environment}-${AWS::Region}-sns-${TopicName}"
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+  YMSQueue:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: !Sub "${System}-${Environment}-${AWS::Region}-sqs-${QueueName}"
+      VisibilityTimeout: !Ref DefaultVisibilityTimeout
+      MessageRetentionPeriod: !Ref DefaultMessageRetentionPeriod
+      MaximumMessageSize: !Ref DefaultMaximumMessageSize
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+  YMSSubscription:
+    Type: "AWS::SNS::Subscription"
+    Properties:
+      TopicArn: !Ref YMSTopic
+      Endpoint: !GetAtt
+        - YMSQueue
+        - Arn
+      Protocol: sqs
+      RawMessageDelivery: "false"
+  YMSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    DependsOn: YMSTopic
+    Properties:
+      PolicyDocument:
+        Id: !Sub "${System}-${Environment}-${AWS::Region}-sns-policy-${TopicName}"
+        Statement:
+          - Sid: 'statement-${System}-${Environment}-${AWS::Region}-sns-policy-${TopicName}'
+            Action:
+            - sns:Publish
+            Effect: Allow
+            Resource: !Ref YMSTopic
+            Principal:
+              AWS: 
+                - !Ref PublisherIAMPrincipal
+      Topics: 
+        - !Ref YMSTopic
+Outputs:
+  YMSTopicName:
+    Description: YMS SNS topic Name
+    Value: 
+      !GetAtt YMSTopic.TopicName
+  
+  YMSTopicArn:
+    Description: YMS SNS ARN
+    Value: 
+      !Ref YMSTopic
+  
+  YMSQueueName:
+    Description: YMS SQS queue name
+    Value:
+      !GetAtt YMSQueue.QueueName
+  
+  YMSQueueArn:
+    Description: YMS SQS queue Arn
+    Value: !GetAtt 
+      - YMSQueue
+      - Arn
+
+  YMSTopicPolicyArn:
+    Description: YMS Topic Policy Arn
+    Value: !Ref YMSTopicPolicy
