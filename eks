@@ -1,0 +1,595 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EKS - Admin Host
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Host Configuration
+        Parameters:
+          - AmiId
+          - OperatingSystem
+          - InstanceType
+          - NameSuffix
+          - InstanceRoleARN
+          - RootVolumeSize
+          - KeyName
+          - UseKey
+          - EKSClusterName
+          - IAMAthenticatorURL
+          - IAMAuthenticatorConfigMapURL
+          - KubectlURL
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - VpcId
+          - SubnetId
+          - ClusterSecurityGroupId
+      - Label:
+          default: Standard Parameters
+        Parameters:
+          - ServiceApp
+          - System
+          - Environment
+          - AdminContactTag
+          - ServiceIdTag
+          - ServiceDataTag
+
+Parameters:
+  RootVolumeSize:
+    Type: Number
+    Default: 20
+    Description: Root volume size in GB.
+
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+    Description: The VPC of the admin host.
+
+  SubnetId:
+    Type: 'AWS::EC2::Subnet::Id'
+    Description: The subnet for the admin host.
+
+  ClusterSecurityGroupId:
+    Type: 'AWS::EC2::SecurityGroup::Id'
+    Description: The EKS cluster security group.
+
+  AmiId:
+    Description: AMI ID
+    Type: 'AWS::EC2::Image::Id'
+
+  OperatingSystem:
+    Description: AMI operating system.
+    Type: String
+    Default: Amazon-Linux-2
+    AllowedValues:
+      - Amazon-Linux-2
+      - Ubuntu
+      - CentOS
+      - Debian
+      - Red-Hat-Enterprise-Linux
+      - SUSE-Linux-Enterprise-Server
+
+  InstanceType:
+    Type: String
+    Default: t3.large
+    AllowedValues:
+      - c5.large
+      - m5.large
+      - t3.nano
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+    ConstraintDescription: Must be a valid EC2 instance type
+    Description: EC2 instance type for the admin host.
+
+  NameSuffix:
+    Description: Name suffix to distinguish between multiple instances.
+    Type: String
+    AllowedPattern: .+
+
+  KeyName:
+    Description: The name of the EC2 key pair.
+    Type: String
+
+  UseKey:
+    Description: Use the the EC2 key pair specified by name.
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  EKSClusterName:
+    Description: The EKS cluster name
+    Type: String
+
+  IAMAthenticatorURL:
+    Description: URL for Amazon EKS-vended aws-iam-authenticator binary.
+    Type: String
+    Default: >-
+      https://amazon-eks.s3-us-west-2.amazonaws.com/1.14.6/2019-08-22/bin/linux/amd64/aws-iam-authenticator
+
+  KubectlURL:
+    Description: >-
+      URL for Amazon EKS-vended kubectl binary for the cluster's Kubernetes
+      version
+    Type: String
+    Default: >-
+      https://amazon-eks.s3-us-west-2.amazonaws.com/1.14.6/2019-08-22/bin/linux/amd64/kubectl
+
+  ServiceApp:
+    Description: Service or Application identifier.
+    Type: String
+    Default: admin-host
+    AllowedPattern: .+
+
+  System:
+    Description: 'System identifier. (Example: qc-pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - sbx
+      - dev
+      - tst
+      - ppr
+      - stg
+      - sup
+      - uat
+      - prd
+
+  AdminContactTag:
+    Description: 'Service/App point of contact. (Example: pteit.yms.infra@qualcomm.com)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceIdTag:
+    Description: 'Service/App identifier. (Example: pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceDataTag:
+    Description: 'Service/App properties. (Example: env=DEV)'
+    Type: String
+    AllowedPattern: .+
+
+Mappings:
+  OSMap:
+    Amazon-Linux-2:
+      user: ec2-user
+      userHome: /home/ec2-user
+    Ubuntu:
+      user: ubuntu
+      userHome: /home/ubuntu
+    CentOS:
+      user: centos
+      userHome: /home/centos
+    Debian:
+      user: admin
+      userHome: /home/admin
+    Red-Hat-Enterprise-Linux:
+      user: ec2-user
+      userHome: /home/ec2-user
+    SUSE-Linux-Enterprise-Server:
+      user: ec2-user
+      userHome: /home/ec2-user
+
+Conditions:
+  UseKeyPair: !Equals 
+    - !Ref UseKey
+    - 'true'
+
+Resources:
+  HostRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service: ssm.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy'
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Path: /
+      Tags:
+        - Key: SSMSessionRunAs
+          Value: !FindInMap 
+            - OSMap
+            - !Ref OperatingSystem
+            - user
+        - Key: host_role
+          Value: eks-admin
+
+  EKSPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub '${System}-${Environment}-eks-${ServiceApp}-${NameSuffix}-policy'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'eks:*'
+            Resource: '*'
+      Roles:
+        - !Ref HostRole
+
+  SSMSessionManagerPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub '${System}-${Environment}-eks-${ServiceApp}-${NameSuffix}-ssm-policy'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'ssm:DescribeSessions'
+              - 'ssm:GetConnectionStatus'
+              - 'ssm:DescribeInstanceProperties'
+              - 'ssm:UpdateInstanceInformation'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'ssmmessages:CreateControlChannel'
+              - 'ssmmessages:CreateDataChannel'
+              - 'ssmmessages:OpenControlChannel'
+              - 'ssmmessages:OpenDataChannel'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'ec2:DescribeInstances'
+              - 'ec2:DescribeInstanceStatus'
+              - 'ec2:DescribeInstanceAttribute'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'iam:ListRoleTags'
+              - 'iam:ListUserTags'
+            Resource: '*'
+      Roles:
+        - !Ref HostRole
+
+  EC2AccessPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub '${System}-${Environment}-eks-${ServiceApp}-${NameSuffix}-ec2-policy'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'cloudwatch:DescribeAlarms'
+              - 'cloudwatch:GetMetricStatistics'
+            Resource: '*'
+            Effect: Allow
+          - Action:
+              - 'ec2:RunInstances'
+              - 'ec2:DescribeInstances'
+              - 'ec2:GetConsole*'
+              - 'ec2:StartInstances'
+              - 'ec2:StopInstances'
+              - 'ec2:RebootInstances'
+              - 'ec2:AssociateIamInstanceProfile'
+              - 'ec2:ReplaceIamInstanceProfileAssociation'
+            Resource:
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+            Effect: Allow
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/host_role': eks-admin
+          - Effect: Deny
+            Action:
+              - 'ec2:TerminateInstances'
+            Resource: 'arn:aws:ec2:*:*:instance/*'
+          - Effect: Deny
+            Action:
+              - 'ec2:CreateTags'
+              - 'ec2:DeleteTags'
+            Resource: '*'
+          - Action:
+              - 'iam:GetRole'
+              - 'iam:PassRole'
+            Resource:
+              - !GetAtt 
+                - HostRole
+                - Arn
+            Effect: Allow
+            Condition:
+              StringEquals:
+                'iam:PassedToService': ec2.amazonaws.com
+      Roles:
+        - !Ref HostRole
+
+  InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref HostRole
+
+  AdminHost:
+    Type: 'AWS::EC2::Instance'
+    Metadata:
+      'AWS::CloudFormation::Init':
+        configSets:
+          default:
+            - install_kubectl
+            - install_aws_iam_authenticator
+            - create_kubeconfig
+            - install_helm
+        install_kubectl:
+          commands:
+            01_download_binary:
+              command: !Sub 'curl -o kubectl ${KubectlURL}'
+              cwd: '~'
+            02_set_permissions:
+              command: chmod 755 ./kubectl
+              cwd: '~'
+            03_update_path:
+              command: >-
+                export HOME=~ && mkdir -p $HOME/bin && mv -f ./kubectl
+                $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+              cwd: '~'
+            04_update_shell_initialization_file:
+              command: 'echo "export PATH=$PATH:$HOME/bin" >> ~/.bashrc'
+              cwd: '~'
+        install_aws_iam_authenticator:
+          commands:
+            01_download_binary:
+              command: !Sub 'curl -o aws-iam-authenticator ${IAMAthenticatorURL}'
+              cwd: '~'
+            02_set_permissions:
+              command: chmod 755 ./aws-iam-authenticator
+              cwd: '~'
+            03_update_path:
+              command: >-
+                export HOME=~ && mkdir -p $HOME/bin && mv -f
+                ./aws-iam-authenticator $HOME/bin/aws-iam-authenticator &&
+                export PATH=$PATH:$HOME/bin
+              cwd: '~'
+            04_update_shell_initialization_file:
+              command: 'echo "export PATH=$PATH:$HOME/bin" >> ~/.bashrc'
+              cwd: '~'
+        create_kubeconfig:
+          commands:
+            01_create_kubeconfig:
+              command: !Sub >-
+                aws eks --region ${AWS::Region} update-kubeconfig --name
+                ${EKSClusterName}
+              cwd: '~'
+        install_helm:
+          commands:
+            01_download_script:
+              command: !Sub >-
+                curl
+                https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+                > get_helm.sh
+              cwd: '~'
+            02_set_permissions:
+              command: chmod 755 ./get_helm.sh
+              cwd: '~'
+            03_execute_script:
+              command: ./get_helm.sh
+              cwd: '~'
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds:
+        - !Ref HostSecurityGroup
+      SubnetId: !Ref SubnetId
+      KeyName: !If 
+        - UseKeyPair
+        - !Ref KeyName
+        - !Ref 'AWS::NoValue'
+      UserData: !Base64 
+        'Fn::Join':
+          - ''
+          - - |
+              #!/bin/bash -x
+            - |
+              cd /tmp
+            - >
+              # Install quickstart-linux-utilities to automate the installation
+              of AWS CloudFormation tools
+            - >
+              # See:
+              https://aws.amazon.com/blogs/infrastructure-and-automation/introduction-to-quickstart-linux-utilities/
+            - |
+              rm -rf /tmp/quickstart-linux-utilities
+            - !Sub |
+              LINUX_OS=${OperatingSystem}
+            - >
+              if [ $LINUX_OS == 'Amazon-Linux-2' ] || [ $LINUX_OS == 'CentOS' ]
+              || [ $LINUX_OS == 'Red-Hat-Enterprise-Linux' ]
+            - |
+              then
+            - |2
+                 sudo yum -y update
+            - |2
+                 sudo yum -y install git
+            - |
+              elif [ $LINUX_OS == 'Debian' ] || [ $LINUX_OS == 'Ubuntu' ]
+            - |
+              then
+            - |2
+                 sudo apt update
+            - |2
+                 sudo apt -y install git
+            - |
+              else
+            - |2
+                 echo Cannot install Git -- unknown operating system: $LINUX_OS
+            - |
+              fi
+            - >
+              until git clone
+              https://github.com/aws-quickstart/quickstart-linux-utilities.git;
+              do echo "Retrying"; done
+            - |
+              cd /tmp/quickstart-linux-utilities
+            - |
+              source quickstart-cfn-tools.source
+            - |
+              # updates the OS with the latest patches.
+            - |
+              qs_update-os || qs_err
+            - |
+              # installs Python and pip.
+            - |
+              qs_bootstrap_pip || qs_err ' pip bootstrap failed '
+            - |
+              # determines the OS type and then installs helper scripts.
+            - |
+              qs_aws-cfn-bootstrap || qs_err ' cfn bootstrap failed '
+            - |
+              # install the AWS CLI
+            - >
+              pip install awscli  &> /var/log/userdata.awscli_install.log ||
+              qs_err ' awscli install failed '
+            - |
+              # set user home
+            - export HOME=
+            - !FindInMap 
+              - OSMap
+              - !Ref OperatingSystem
+              - userHome
+            - |+
+
+            - >
+              # Perform additional configuration steps defined in the Metadata
+              section
+            - !Sub >
+              cfn-init --region ${AWS::Region} --stack ${AWS::StackId}
+              --resource AdminHost --configsets default
+            - |
+              # Signal final status back to CloudFormation
+            - !Sub >
+              cfn-signal -e $(qs_status) --stack ${AWS::StackName} --resource
+              AdminHost --region ${AWS::Region}
+      Tags:
+        - Key: Name
+          Value: !Sub '${System}-${Environment}-eks-${ServiceApp}-${NameSuffix}'
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+
+  HostSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security group for all nodes in the cluster
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+      VpcId: !Ref VpcId
+
+  ClusterInboundFromHost:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: HostSecurityGroup
+    Properties:
+      Description: Allow admin host to communicate with the cluster API Server
+      FromPort: 443
+      GroupId: !Ref ClusterSecurityGroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref HostSecurityGroup
+      ToPort: 443
+
+  ClusterOutboundToHostOn443:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    DependsOn: HostSecurityGroup
+    Properties:
+      Description: Allow the cluster control plane to communicate with host on port 443
+      DestinationSecurityGroupId: !Ref HostSecurityGroup
+      FromPort: 443
+      GroupId: !Ref ClusterSecurityGroupId
+      IpProtocol: tcp
+      ToPort: 443
+
+  HostInboundFromClusterOn443:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: HostSecurityGroup
+    Properties:
+      Description: Allow host to receive communication from cluster control plane
+      FromPort: 443
+      GroupId: !Ref HostSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref ClusterSecurityGroupId
+      ToPort: 443
+
+  HostRecoveryAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub >-
+        ${System}-${Environment}-eks-${ServiceApp}-${NameSuffix}-system-check-failed-alarm
+      AlarmDescription: >-
+        Trigger a recovery when system status check fails for 3 consecutive
+        periods.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_System
+      Statistic: Minimum
+      Period: '300'
+      EvaluationPeriods: '3'
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: '0'
+      AlarmActions:
+        - !Join 
+          - ''
+          - - 'arn:aws:automate:'
+            - !Ref 'AWS::Region'
+            - ':ec2:recover'
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref AdminHost
+
+  HostRebootAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub >-
+        ${System}-${Environment}-eks-${ServiceApp}-${NameSuffix}-instance-check-failed-alarm
+      AlarmDescription: >-
+        Trigger a reboot when instance status check fails for 3 consecutive
+        periods.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_Instance
+      Statistic: Minimum
+      Period: '400'
+      EvaluationPeriods: '4'
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: '0'
+      AlarmActions:
+        - !Join 
+          - ''
+          - - 'arn:aws:automate:'
+            - !Ref 'AWS::Region'
+            - ':ec2:reboot'
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref AdminHost
+
+Outputs:
+  HostId:
+    Description: Admin host instance ID
+    Value: !Ref AdminHost
+
+  HostPrivateIpAddress:
+    Description: Admin host private IP address
+    Value: !GetAtt 
+      - AdminHost
+      - PrivateIp
