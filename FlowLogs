@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create resources for VPC FlowLogs monitoring
+Parameters:
+  AggregatorAccountId:
+    Description: AWS Aggregator Account ID
+    Default: 461319118873
+    Type: String
+  FlowLogsLogGroupName:
+    Description: Name of Cloudwatch Log Group to contain FlowLogs
+    Default: '/aws/flowlogs/vpc'
+    Type: String
+Resources:
+  CrossAccountFlowLogsEnablerRole:
+    Type: AWS::IAM::Role
+    Description: Role permits cross account invocation to enable flow logs
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+                AWS: !Sub 'arn:aws:iam::${AggregatorAccountId}:root'
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - ec2:DescribeFlowLogs
+                  - ec2:CreateFlowLogs
+                  - logs:CreateLogGroup
+                Effect: Allow
+                Resource: '*'
+              - Action:
+                  - logs:PutRetentionPolicy
+                  - logs:PutSubscriptionFilter
+                Effect: Allow
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${FlowLogsLogGroupName}:*:*'
+              - Action:
+                  - iam:PassRole
+                Effect: Allow
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/QCFlowLogs'
+            Version: 2012-10-17
+          PolicyName: QCFlowLogsEnabler
+      RoleName: QCFlowLogsEnabler
+  FlowLogsRole:
+    Type: AWS::IAM::Role
+    Description: Role permits Amazon EC2 to publish flow logs to a CloudWatch Logs Group
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+                Service: vpc-flow-logs.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                Effect: Allow
+                Resource: '*'
+              - Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                Effect: Allow
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${FlowLogsLogGroupName}:*:*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${FlowLogsLogGroupName}'
+            Version: 2012-10-17
+          PolicyName: QCFlowLogs
+      RoleName: QCFlowLogs
+  CreateVpcCloudWatchRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: !Sub 'Send CreateVpc events to event bus on ${AggregatorAccountId}'
+      Name: QCRuleCreateVpc
+      EventPattern:
+        source: 
+          - aws.ec2
+        detail-type: 
+          - AWS API Call via CloudTrail
+        detail:
+          eventSource:
+              - ec2.amazonaws.com
+          eventName:
+              - CreateVpc
+      State: ENABLED
+      Targets: 
+        - 
+          Arn: !Sub 'arn:aws:events:${AWS::Region}:${AggregatorAccountId}:event-bus/default'
+          Id: "CrossAccountTargetId"
