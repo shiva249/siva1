@@ -1,0 +1,480 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ML DPM RDS Aurora database (provisioned) version 1.0.0
+Parameters:
+  DbClusterName:
+    Description: Database cluster name
+    Type: String
+    Default: aurora-db-cluster
+  DbName:
+    Description: Database name
+    Type: String
+    Default: cft
+  DbPort:
+    Description: DB port
+    Type: String
+    Default: '3306'
+  DbEngine:
+    Description: DB engine
+    Type: String
+    Default: aurora-mysql
+  DbEngineVersion:
+    Description: DB engine version
+    Type: String
+    Default: 5.7.mysql_aurora.2.09.1
+  DbParameterGroupFamily:
+    Description: DB parameter group family
+    Type: String
+    Default: aurora-mysql5.7
+  DbInstanceClass:
+    Description: DB instance class
+    Type: String
+    Default: db.t3.small
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.t3.large
+      - db.t3.xlarge
+      - db.t3.2xlarge
+      - db.r5.large
+      - db.r5.xlarge
+      - db.r5.2xlarge
+      - db.r5.4xlarge
+      - db.r5.12xlarge
+      - db.r5.24xlarge
+  DbMasterUserName:
+    Description: Database master (root) user name
+    Type: String
+  DbMasterUserPassword:
+    Description: Database master (root) user password
+    Type: String
+    NoEcho: 'true'
+  DbSubnetIds:
+    Description: DB subnet ids
+    Type: 'List<AWS::EC2::Subnet::Id>'
+  DbStorageEncrypted:
+    Description: Use encrypted storage
+    Type: String
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+  DbBackupRetentionPeriod:
+    Description: The number of days for which automatic backups are retained
+    Type: Number
+    Default: '30'
+  VpcId:
+    Description: VPC identifier
+    Type: 'AWS::EC2::VPC::Id'
+  DbAlarmCPUUtilizationThreshold:
+    Description: High CPU utilization (%) threshold.
+    Type: Number
+    Default: '80'
+    MinValue: '0'
+    MaxValue: '100'
+  DbAlarmFreeableMemoryThreshold:
+    Description: Low available RAM (bytes) threshold.
+    Type: Number
+    Default: '1048576000'
+    MinValue: '0'
+  DbAlarmDiskQueueDepthThreshold:
+    Description: High outstanding read/write requests threshold.
+    Type: Number
+    Default: '64'
+    MinValue: '0'
+  DbAlarmFreeStorageSpaceThreshold:
+    Description: Low available storage (bytes) threshold.
+    Type: Number
+    Default: '2097152000'
+    MinValue: '0'
+  DbAlarmTopicARN:
+    Description: ARN for the alarm SNS topic
+    Type: String
+  System:
+    Description: System identifier
+    Type: String
+    Default: qc-pteit-ml
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - dev
+      - tst
+      - ppr
+      - uat
+      - prd
+  AdminContactTag:
+    Description: 'Required tag: Point of contact'
+    Type: String
+  ServiceIdTag:
+    Description: 'Required tag: Application identifier'
+    Type: String
+  ServiceDataTag:
+    Description: 'Required tag: Application properties'
+    Type: String
+Conditions:
+  AuroraMySQL: !Or 
+    - !Equals 
+      - !Ref DbEngine
+      - aurora
+    - !Equals 
+      - !Ref DbEngine
+      - aurora-mysql
+Resources:
+  DatabaseCluster:
+    Type: 'AWS::RDS::DBCluster'
+    DeletionPolicy: Snapshot
+    DependsOn:
+      - DatabaseClusterParameterGroup
+      - DatabaseSubnetGroup
+      - DatabaseClusterSecurityGroup
+    Properties:
+      DBClusterIdentifier: !Sub '${System}-${DbClusterName}-${Environment}'
+      DatabaseName: !Ref DbName
+      Port: !Ref DbPort
+      Engine: !Ref DbEngine
+      EngineVersion: !Ref DbEngineVersion
+      StorageEncrypted: !Ref DbStorageEncrypted
+      BackupRetentionPeriod: !Ref DbBackupRetentionPeriod
+      MasterUsername: !Ref DbMasterUserName
+      MasterUserPassword: !Ref DbMasterUserPassword
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
+      VpcSecurityGroupIds:
+        - !GetAtt 
+          - DatabaseClusterSecurityGroup
+          - GroupId
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+  DatabaseSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: Database subnet group.
+      SubnetIds: !Ref DbSubnetIds
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+  DatabaseClusterParameterGroup:
+    Type: 'AWS::RDS::DBClusterParameterGroup'
+    DependsOn:
+      - AddRoleToDbClusterLambdaFunction
+    Properties:
+      Parameters:
+        aws_default_s3_role: !GetAtt 
+          - AuroraAccessRole
+          - Arn
+      Family: !Ref DbParameterGroupFamily
+      Description: DB cluster parameter group
+  DatabaseClusterSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable access via database port
+      GroupName: !Sub '${System}-${DbClusterName}-sg-${Environment}'
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+  AddRoleToDBCluster:
+    DependsOn:
+      - DatabaseCluster
+    Type: 'Custom::AddRoleToDBCluster'
+    Properties:
+      ServiceToken: !GetAtt 
+        - AddRoleToDbClusterLambdaFunction
+        - Arn
+      AuroraAccessRole: !GetAtt 
+        - AuroraAccessRole
+        - Arn
+      DBClusterIdentifier: !Ref DatabaseCluster
+  LambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+  LambdaPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LambdaPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'iam:*'
+              - 'ec2:*'
+              - 'rds:*'
+              - 'logs:*'
+            Resource: '*'
+      Roles:
+        - !Ref LambdaRole
+  AddRoleToDbClusterLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    DeletionPolicy: Delete
+    DependsOn:
+      - LambdaRole
+    Properties:
+      Code:
+        ZipFile: !Join 
+          - |+
+
+          - - import logging
+            - import boto3
+            - import cfnresponse
+            - ''
+            - logger = logging.getLogger()
+            - logger.setLevel(logging.INFO)
+            - ''
+            - 'def handler(event, context):'
+            - '    logger.info(''Event: {}''.format(event))'
+            - '    logger.info(''Request: {}''.format(context))'
+            - ''
+            - '    try:'
+            - '        if event[''RequestType''] == ''Create'':'
+            - '            logger.info(''CREATE'')'
+            - '            dbClusterId = event[''ResourceProperties''][''DBClusterIdentifier'']'
+            - '            iamRoleArn = event[''ResourceProperties''][''AuroraAccessRole'']'
+            - ''
+            - '            addIamRole(dbClusterId, iamRoleArn)'
+            - '            sendResponse(event, context, ''SUCCESS'', ''Resource creation successful'')'
+            - '        elif event[''RequestType''] == ''Update'':'
+            - |2
+                          logger.info('UPDATE')
+            - '            sendResponse(event, context, ''SUCCESS'', ''Resource update successful'')'
+            - '        elif event[''RequestType''] == ''Delete'':'
+            - '            logger.info(''DELETE'')'
+            - '            sendResponse(event, context, ''SUCCESS'', ''Resource deletion successful'')'
+            - '        else:'
+            - '            sendResponse(event, context, ''FAILED'',  ''Unexpected event received from CloudFormation'')'
+            - '    except Exception as e:'
+            - '        error = ''Failed to start build: {}''.format(e)'
+            - '        logger.error(error)'
+            - '        sendResponse(event, context, ''FAILED'', error)'
+            - ''
+            - 'def addIamRole(dbClusterId, iamRoleArn):'
+            - '    logger.info(''DBClusterIdentifier: {}''.format(dbClusterId))'
+            - '    logger.info(''AuroraAccessRole: {}''.format(iamRoleArn))'
+            - '    client = boto3.client(''rds'')'
+            - '    client.add_role_to_db_cluster('
+            - '        DBClusterIdentifier=dbClusterId,'
+            - '        RoleArn=iamRoleArn'
+            - '    )'
+            - ''
+            - 'def sendResponse(event, context, responseStatus, responseData):'
+            - '    responseBody = {}'
+            - '    responseBody[''Status''] = responseStatus'
+            - '    responseBody[''Reason''] = "See the details in CloudWatch Log Stream: " + context.log_stream_name,'
+            - '    responseBody[''PhysicalResourceId''] = context.log_stream_name'
+            - '    responseBody[''StackId''] = event[''StackId'']'
+            - '    responseBody[''RequestId''] = event[''RequestId'']'
+            - '    responseBody[''LogicalResourceId''] = event[''LogicalResourceId'']'
+            - '    responseBody[''Data''] = responseData'
+            - ''
+            - '    logger.info(''ResponseURL: {}''.format(event[''ResponseURL'']))'
+            - '    logger.info(''ResponseBody: {}''.format(responseBody))'
+            - ''
+            - '    try:'
+            - '        cfnresponse.send(event, context, cfnresponse.SUCCESS, responseBody)'
+            - '    except Exception as e:'
+            - '        logger.error(''Unable to send a response to CloudFormation: {}''.format(str(e)))'
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt 
+        - LambdaRole
+        - Arn
+      Runtime: python3.7
+      Timeout: 60
+  AuroraAccessRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - rds.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  AuroraAccessPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: AuroraAccessPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:ListBucket'
+              - 's3:ListBucketVersions'
+              - 's3:PutObject'
+              - 's3:GetObject'
+              - 's3:GetObjectVersion'
+              - 's3:DeleteObject'
+              - 's3:DeleteObjectVersion'
+            Resource:
+              - '*'
+      Roles:
+        - !Ref AuroraAccessRole
+  PrimaryDatabaseInstance:
+    Type: 'AWS::RDS::DBInstance'
+    DependsOn:
+      - DBParameterGroup
+    Properties:
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
+      DBClusterIdentifier: !Ref DatabaseCluster
+      DBInstanceClass: !Ref DbInstanceClass
+      DBInstanceIdentifier: !Sub '${System}-db-instance-0-${Environment}-${DbClusterName}'
+      Engine: !Ref DbEngine
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      DBParameterGroupName: !Ref DBParameterGroup
+      PubliclyAccessible: 'false'
+      Tags:
+        - Key: Name
+          Value: !Sub '${System}-db-instance-0-${Environment}'
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+  DBParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: DB parameter group
+      Family: !Ref DbParameterGroupFamily
+      Parameters:
+        net_read_timeout: '3600'
+        net_write_timeout: '3600'
+  DBCPUUtilizationAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: !Join 
+        - ''
+        - - !Ref PrimaryDatabaseInstance
+          - ' DB - High CPU utilization'
+      Namespace: AWS/RDS
+      MetricName: CPUUtilization
+      Unit: Percent
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref DbAlarmCPUUtilizationThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: PrimaryDatabaseInstanceentifier
+          Value: !Ref PrimaryDatabaseInstance
+      AlarmActions:
+        - !Ref DbAlarmTopicARN
+  DBFreeableMemoryAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: !Join 
+        - ''
+        - - !Ref PrimaryDatabaseInstance
+          - ' DB - Low available memory (RAM)'
+      Namespace: AWS/RDS
+      MetricName: FreeableMemory
+      Statistic: Average
+      Period: '300'
+      EvaluationPeriods: '2'
+      Threshold: !Ref DbAlarmFreeableMemoryThreshold
+      ComparisonOperator: LessThanOrEqualToThreshold
+      Dimensions:
+        - Name: PrimaryDatabaseInstanceentifier
+          Value: !Ref PrimaryDatabaseInstance
+      AlarmActions:
+        - !Ref DbAlarmTopicARN
+  DBDiskQueueDepthAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: !Join 
+        - ''
+        - - !Ref PrimaryDatabaseInstance
+          - ' DB - High number of read/write requests waiting for disk access'
+      Namespace: AWS/RDS
+      MetricName: DiskQueueDepth
+      Statistic: Average
+      Period: '300'
+      EvaluationPeriods: '2'
+      Threshold: !Ref DbAlarmDiskQueueDepthThreshold
+      ComparisonOperator: LessThanOrEqualToThreshold
+      Dimensions:
+        - Name: PrimaryDatabaseInstanceentifier
+          Value: !Ref PrimaryDatabaseInstance
+      AlarmActions:
+        - !Ref DbAlarmTopicARN
+  DBFreeStorageSpaceAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: !Join 
+        - ''
+        - - !Ref PrimaryDatabaseInstance
+          - ' DB - Low available storage space'
+      Namespace: AWS/RDS
+      MetricName: FreeStorageSpace
+      Statistic: Average
+      Period: '300'
+      EvaluationPeriods: '2'
+      Threshold: !Ref DbAlarmFreeStorageSpaceThreshold
+      ComparisonOperator: LessThanOrEqualToThreshold
+      Dimensions:
+        - Name: PrimaryDatabaseInstanceentifier
+          Value: !Ref PrimaryDatabaseInstance
+      AlarmActions:
+        - !Ref DbAlarmTopicARN
+Outputs:
+  DatabaseClusterId:
+    Description: Database Cluster ID
+    Value: !Ref DatabaseCluster
+  DatabaseClusterURL:
+    Description: Database Cluster URL
+    Value: !GetAtt 
+      - DatabaseCluster
+      - Endpoint.Address
+  DatabaseClusterReadURL:
+    Description: Database Cluster read URL
+    Value: !GetAtt 
+      - DatabaseCluster
+      - ReadEndpoint.Address
+  DatabaseClusterPort:
+    Description: Database Cluster port
+    Value: !GetAtt 
+      - DatabaseCluster
+      - Endpoint.Port
+  DatabaseName:
+    Description: Database name
+    Value: !Ref DbName
+  DatabaseUser:
+    Description: Database master user
+    Value: !Ref DbMasterUserName
+  DatabaseSubnetGroupName:
+    Description: Database subnet group name
+    Value: !Ref DatabaseSubnetGroup
+  DatabaseClusterSecurityGroupId:
+    Description: Security group for database cluster
+    Value: !Ref DatabaseClusterSecurityGroup
+  DatabaseInstanceId:
+    Description: Database instance identifier
+    Value: !Ref PrimaryDatabaseInstance
