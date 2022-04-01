@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "CloudFormation Template to create an S3 bucket. This bucket is used to deploy the subscriber lambda function"
+
+Resources:
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: Retain
+    Properties:
+      VersioingConfiguration:
+        Status: Enable
+Outputs:
+  S3Bucket:
+    Description: "S3 bucket name"
+    Value:
+      Ref: "S3Bucket"
+    Export:
+      Name: !Sub "${AWS::StackName}-S3Bucket"
