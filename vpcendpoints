@@ -1,0 +1,447 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: VPC Endpoints
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - VpcId
+          - CidrIp
+          - Subnets
+      - Label:
+          default: Select VPC Endpoints to Enable
+        Parameters:
+          - EnableApiGateway
+          - EnableAthena
+          - EnableDataSync
+          - EnableEBS
+          - EnableECR
+          - EnableEMR
+          - EnableSQS
+          - EnableSNS
+          - EnableSecretsManager
+          - EnableSSM
+          - EnableStorageGateway
+      - Label:
+          default: Standard Parameters
+        Parameters:
+          - System
+          - Environment
+          - AdminContactTag
+          - ServiceIdTag
+          - ServiceDataTag
+
+Parameters:
+  VpcId:
+    Description: The ID of the VPC in which the endpoints will be used
+    Type: 'AWS::EC2::VPC::Id'
+
+  CidrIp:
+    Description: The IPv4 ranges to allow communication with the VPC endpoints
+    Type: String
+
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+    Description: >-
+      Choose one or more subnets in which to create an endpoint network interface.
+  
+  EnableApiGateway:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, an interface VPC endpoint will be created for API Gateway.'
+    Type: String
+
+  EnableAthena:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, an interface VPC endpoint will be created for Athena.'
+    Type: String
+
+  EnableDataSync:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, an interface VPC endpoint will be created for DataSync.'
+    Type: String
+    
+  EnableEBS:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, an interface VPC endpoint will be created for EBS.'
+    Type: String
+    
+  EnableECR:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, an interface VPC endpoint will be created for ECR.'
+    Type: String
+    
+  EnableEMR:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, an interface VPC endpoint will be created for EMR.'
+    Type: String
+    
+  EnableSQS:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, a interface VPC endpoint will be created for SQS.'
+    Type: String               
+
+  EnableSNS:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, a interface VPC endpoint will be created for SNS.'
+    Type: String
+
+  EnableStorageGateway:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: 'If true, a interface VPC endpoint will be created for Storage Gateway.'
+    Type: String
+    
+  EnableSSM:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+    Description: 'If true, a interface VPC endpoint will be created for Systems Manager.'
+    Type: String
+    
+  EnableSecretsManager:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+    Description: 'If true, a interface VPC endpoint will be created for Secrets Manager.'
+    Type: String            
+  
+  System:
+    Description: 'System identifier. (Example: qc-pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - dev
+      - tst
+      - ppr
+      - stg
+      - sup
+      - uat
+      - prd
+
+  AdminContactTag:
+    Description: 'Service/App point of contact. (Example: pteit.yms.infra@qualcomm.com)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceIdTag:
+    Description: 'Service/App identifier. (Example: pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceDataTag:
+    Description: 'Service/App properties. (Example: env=DEV)'
+    Type: String
+    AllowedPattern: .+
+
+Conditions:
+  EnableApiGatewayVpce: !Equals
+    - !Ref EnableApiGateway
+    - "true"
+    
+  EnableAthenaVpce: !Equals
+    - !Ref EnableAthena
+    - "true"
+
+  EnableDataSyncVpce: !Equals
+    - !Ref EnableDataSync
+    - "true"
+
+  EnableEBSVpce: !Equals
+    - !Ref EnableEBS
+    - "true"    
+
+  EnableECRVpce: !Equals
+    - !Ref EnableECR
+    - "true"   
+
+  EnableEMRVpce: !Equals
+    - !Ref EnableEMR
+    - "true"  
+
+  EnableSQSVpce: !Equals
+    - !Ref EnableSQS
+    - "true"  
+
+  EnableSNSVpce: !Equals
+    - !Ref EnableSNS
+    - "true"  
+
+  EnableStorageGatewayVpce: !Equals
+    - !Ref EnableStorageGateway
+    - "true"  
+
+  EnableSSMVpce: !Equals
+    - !Ref EnableSSM
+    - "true"  
+
+  EnableSecretsManagerVpce: !Equals
+    - !Ref EnableSecretsManager
+    - "true"  
+    
+Resources:
+  VpceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security group for all interface VPC endpoints
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+      VpcId: !Ref VpcId
+  
+  VpceSecurityGroupInboundRule:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: VpceSecurityGroup
+    Properties:
+      Description: Allow ingress traffic on port 443
+      FromPort: 443
+      ToPort: 443
+      GroupId: !Ref VpceSecurityGroup
+      IpProtocol: tcp
+      CidrIp: !Ref CidrIp
+  
+  EbsVpce:
+    Condition: EnableEBSVpce
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ebs'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  EcrApiVpce:
+    Condition: EnableECRVpce
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.api'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  EcrDkrVpce:
+    Condition: EnableECRVpce  
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.dkr'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  EmrVpce:
+    Condition: EnableEMRVpce    
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.elasticmapreduce'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  SqsVpce:
+    Condition: EnableSQSVpce  
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.sqs'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  SnsVpce:
+    Condition: EnableSNSVpce  
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.sns'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  ApiGatewayVpce:
+    Condition: EnableApiGatewayVpce  
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.execute-api'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  AthenaVpce:
+    Condition: EnableAthenaVpce   
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.athena'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  DataSyncVpce:
+    Condition: EnableDataSyncVpce   
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.datasync'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  StorageGatewayVpce:
+    Condition: EnableStorageGatewayVpce  
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.storagegateway'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  SSMVpce:
+    Condition: EnableSSMVpce  
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ssm'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+  
+  SecretsManagerVpce:
+    Condition: EnableSecretsManagerVpce  
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.secretsmanager'
+      SecurityGroupIds:
+        - !Ref VpceSecurityGroup
+      SubnetIds: !Ref Subnets
+      VpcId: !Ref VpcId
+      PrivateDnsEnabled: true
+
+Outputs:
+  VpceSecurityGroupId:
+    Description: The ID of the security group for all interface VPC endpoints created
+    Value: !Ref VpceSecurityGroup
+  
+  ApiGatewayVpce:
+    Condition: EnableApiGatewayVpce
+    Description: The ID of the VPC endpoint for API Gateway
+    Value: !Ref ApiGatewayVpce
+  
+  AthenaVpce:
+    Condition: EnableAthenaVpce  
+    Description: The ID of the VPC endpoint for Athena
+    Value: !Ref AthenaVpce
+  
+  DataSyncVpce:
+    Condition: EnableDataSyncVpce  
+    Description: The ID of the VPC endpoint for DataSync
+    Value: !Ref DataSyncVpce
+  
+  EbsVpce:
+    Condition: EnableEBSVpce
+    Description: The ID of the VPC endpoint for EBS
+    Value: !Ref EbsVpce
+  
+  EcrApiVpce:
+    Condition: EnableECRVpce  
+    Description: The ID of the VPC endpoint for ECR API
+    Value: !Ref EcrApiVpce
+  
+  EcrDkrVpce:
+    Condition: EnableECRVpce  
+    Description: The ID of the VPC endpoint for Docker Registry API
+    Value: !Ref EcrDkrVpce
+  
+  EmrVpce:
+    Condition: EnableEMRVpce  
+    Description: The ID of the VPC endpoint for EMR
+    Value: !Ref EmrVpce
+  
+  SqsVpce:
+    Condition: EnableSQSVpce  
+    Description: The ID of the VPC endpoint for SQS
+    Value: !Ref SqsVpce
+  
+  SnsVpce:
+    Condition: EnableSNSVpce  
+    Description: The ID of the VPC endpoint for SNS
+    Value: !Ref SnsVpce
+  
+  StorageGatewayVpce:
+    Condition: EnableStorageGatewayVpce  
+    Description: The ID of the VPC endpoint for Storage Gateway
+    Value: !Ref StorageGatewayVpce
+  
+  SSMVpce:
+    Condition: EnableSSMVpce  
+    Description: The ID of the VPC endpoint for Systems Manager
+    Value: !Ref SSMVpce
+  
+  SecretsManagerVpce:
+    Condition: EnableSecretsManagerVpce   
+    Description: The ID of the VPC endpoint for Secrets Manager
+    Value: !Ref SecretsManagerVpce
