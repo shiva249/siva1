@@ -1,0 +1,757 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: PTEIT Generic Linux EC2 Instance v1.0.0
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Instance Configuration
+        Parameters:
+          - AmiId
+          - InstanceType
+          - InstanceRoleARN
+          - KeyName
+          - UseKey
+      - Label:
+          default: Storage Configuration
+        Parameters:
+          - RootVolumeSize
+          - AddDataVolume
+          - DataVolumeDeviceName
+          - DataVolumeType
+          - DataVolumeSize
+          - DataVolumeFilesystemType
+          - DataVolumeMountPoint
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - VpcId
+          - SubnetId
+          - AvailabilityZone
+          - SecurityGroup
+          - SourceSSHLocation
+      - Label:
+          default: Standard Parameters
+        Parameters:
+          - ServiceApp
+          - System
+          - Environment
+          - AdminContactTag
+          - ServiceIdTag
+          - ServiceDataTag
+Parameters:
+  AmiId:
+    Description: >-
+      AMI ID. (It is recommended that you use the Qualcommm Golden AMIs. Select
+      one from here:  go/goldenamis)
+    Type: 'AWS::EC2::Image::Id'
+  InstanceType:
+    Type: String
+    Default: t3.large
+    AllowedValues:
+      - a1.medium
+      - a1.large
+      - a1.xlarge
+      - a1.2xlarge
+      - a1.4xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5.12xlarge
+      - c5.18xlarge
+      - c5.24xlarge
+      - c5.metal
+      - c5d.large
+      - c5d.xlarge
+      - c5d.2xlarge
+      - c5d.4xlarge
+      - c5d.9xlarge
+      - c5d.18xlarge
+      - c5n.large
+      - c5n.xlarge
+      - c5n.2xlarge
+      - c5n.4xlarge
+      - c5n.9xlarge
+      - c5n.18xlarge
+      - cc2.8xlarge
+      - cr1.8xlarge
+      - d2.xlarge
+      - d2.2xlarge
+      - d2.4xlarge
+      - d2.8xlarge
+      - f1.2xlarge
+      - f1.4xlarge
+      - f1.16xlarge
+      - g2.2xlarge
+      - g2.8xlarge
+      - g3s.xlarge
+      - g3.4xlarge
+      - g3.8xlarge
+      - g3.16xlarge
+      - h1.2xlarge
+      - h1.4xlarge
+      - h1.8xlarge
+      - h1.16xlarge
+      - hs1.8xlarge
+      - i3.large
+      - i3.xlarge
+      - i3.2xlarge
+      - i3.4xlarge
+      - i3.8xlarge
+      - i3.16xlarge
+      - i3.metal
+      - i3en.large
+      - i3en.xlarge
+      - i3en.2xlarge
+      - i3en.3xlarge
+      - i3en.6xlarge
+      - i3en.12xlarge
+      - i3en.24xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - m5.12xlarge
+      - m5.16xlarge
+      - m5.24xlarge
+      - m5.metal
+      - m5a.large
+      - m5a.xlarge
+      - m5a.2xlarge
+      - m5a.4xlarge
+      - m5a.8xlarge
+      - m5a.12xlarge
+      - m5a.16xlarge
+      - m5a.24xlarge
+      - m5ad.large
+      - m5ad.xlarge
+      - m5ad.2xlarge
+      - m5ad.4xlarge
+      - m5ad.12xlarge
+      - m5ad.24xlarge
+      - m5d.large
+      - m5d.xlarge
+      - m5d.2xlarge
+      - m5d.4xlarge
+      - m5d.8xlarge
+      - m5d.12xlarge
+      - m5d.16xlarge
+      - m5d.24xlarge
+      - m5d.metal
+      - p3.2xlarge
+      - p3.8xlarge
+      - p3.16xlarge
+      - p3dn.24xlarge
+      - g4dn.xlarge
+      - g4dn.2xlarge
+      - g4dn.4xlarge
+      - g4dn.8xlarge
+      - g4dn.12xlarge
+      - g4dn.16xlarge
+      - g4dn.metal
+      - r5.large
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.8xlarge
+      - r5.12xlarge
+      - r5.16xlarge
+      - r5.24xlarge
+      - r5.metal
+      - r5a.large
+      - r5a.xlarge
+      - r5a.2xlarge
+      - r5a.4xlarge
+      - r5a.8xlarge
+      - r5a.12xlarge
+      - r5a.16xlarge
+      - r5a.24xlarge
+      - r5ad.large
+      - r5ad.xlarge
+      - r5ad.2xlarge
+      - r5ad.4xlarge
+      - r5ad.12xlarge
+      - r5ad.24xlarge
+      - r5d.large
+      - r5d.xlarge
+      - r5d.2xlarge
+      - r5d.4xlarge
+      - r5d.8xlarge
+      - r5d.12xlarge
+      - r5d.16xlarge
+      - r5d.24xlarge
+      - r5d.metal
+      - t3.nano
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+      - t3a.nano
+      - t3a.micro
+      - t3a.small
+      - t3a.medium
+      - t3a.large
+      - t3a.xlarge
+      - t3a.2xlarge
+      - u-6tb1.metal
+      - u-9tb1.metal
+      - u-12tb1.metal
+      - x1.16xlarge
+      - x1.32xlarge
+      - x1e.xlarge
+      - x1e.2xlarge
+      - x1e.4xlarge
+      - x1e.8xlarge
+      - x1e.16xlarge
+      - x1e.32xlarge
+      - z1d.large
+      - z1d.xlarge
+      - z1d.2xlarge
+      - z1d.3xlarge
+      - z1d.6xlarge
+      - z1d.12xlarge
+      - z1d.metal
+    ConstraintDescription: Must be a valid EC2 instance type
+    Description: EC2 instance type for the node instances.
+  KeyName:
+    Description: The name of the EC2 key pair (Optional)
+    Type: String
+  UseKey:
+    Description: Use the the EC2 key pair specified.
+    Type: String
+    Default: 'no'
+    AllowedValues:
+      - 'yes'
+      - 'no'
+  RootVolumeSize:
+    Description: 'The size of the volume, in GiBs.'
+    Type: Number
+    Default: '20'
+  AddDataVolume:
+    Description: Add EBS data volume.
+    Type: String
+    Default: 'no'
+    AllowedValues:
+      - 'yes'
+      - 'no'
+  DataVolumeDeviceName:
+    Description: The EBS volume device name.
+    Type: String
+    AllowedValues:
+      - /dev/sdf
+      - /dev/sdg
+      - /dev/sdh
+      - /dev/sdi
+      - /dev/sdj
+      - /dev/sdk
+      - /dev/sdl
+      - /dev/sdm
+      - /dev/sdn
+      - /dev/sdo
+      - /dev/sdp
+    Default: /dev/sdf
+  DataVolumeType:
+    Description: The EBS volume type.
+    Type: String
+    Default: gp2
+    AllowedValues:
+      - gp2
+      - io1
+      - sc1
+      - st1
+      - standard
+  DataVolumeSize:
+    Description: 'The size of the EBS volume, in GiBs'
+    Type: Number
+    Default: '50'
+  DataVolumeFilesystemType:
+    Description: The file system type to format the EBS volume as.
+    Type: String
+    AllowedValues:
+      - ext4
+      - xfs
+    Default: ext4
+  DataVolumeMountPoint:
+    Description: Mount point for the EBS volume.
+    Type: String
+    Default: /mnt/workspace
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+    Description: The VPC for the EC2 instance.
+  SubnetId:
+    Type: 'AWS::EC2::Subnet::Id'
+    Description: The subnet for the EC2 instance.
+  AvailabilityZone:
+    Description: The Availability Zone to use
+    Type: 'AWS::EC2::AvailabilityZone::Name'
+  SecurityGroup:
+    Type: String
+    Description: >-
+      Security group to associate with instance. If none is specified,  a
+      default security group will be created.
+  InstanceRoleARN:
+    Description: >-
+      The role ARN to associate with the instance. If none is specified, a
+      default role will be created and attached to the instance.
+    Type: String
+  SourceSSHLocation:
+    Description: The source IP address range to allow SSH access to the EC2 instance.
+    Type: String
+    MinLength: 9
+    MaxLength: 18
+    Default: 10.0.0.0/8
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+  ServiceApp:
+    Description: Service or Application identifier.
+    Type: String
+    AllowedPattern: .+
+  System:
+    Description: 'System identifier. (Example: qc-pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - sbx
+      - dev
+      - tst
+      - ppr
+      - stg
+      - sup
+      - uat
+      - prd
+  AdminContactTag:
+    Description: 'Required admin_contact tag. (Example: pteit.yms.infra@qualcomm.com)'
+    Type: String
+    AllowedPattern: .+
+  ServiceIdTag:
+    Description: 'Required service_id tag. (Example: pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+  ServiceDataTag:
+    Description: 'Required service_data tag. (Example: env=DEV)'
+    Type: String
+    AllowedValues:
+      - env=SBX
+      - env=DEV
+      - env=TST
+      - env=PPR
+      - env=STG
+      - env=SUP
+      - env=UAT
+      - env=PRD
+Conditions:
+  UseKeyPair: !Equals 
+    - !Ref UseKey
+    - 'yes'
+  AddEBSDataVolume: !Equals 
+    - !Ref AddDataVolume
+    - 'yes'
+  CreateSecurityGroup: !Equals 
+    - !Ref SecurityGroup
+    - ''
+  CreateRole: !Equals 
+    - !Ref InstanceRoleARN
+    - ''
+Resources:
+  EC2Role:
+    Type: 'AWS::IAM::Role'
+    Condition: CreateRole
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service: ssm.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Path: /
+  SSMSessionManagerPolicy:
+    Type: 'AWS::IAM::Policy'
+    Condition: CreateRole
+    Properties:
+      PolicyName: !Sub '${System}-${Environment}-ec2-${ServiceApp}-ssm-policy'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'ssm:DescribeSessions'
+              - 'ssm:GetConnectionStatus'
+              - 'ssm:DescribeInstanceProperties'
+              - 'ssm:UpdateInstanceInformation'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'ssmmessages:CreateControlChannel'
+              - 'ssmmessages:CreateDataChannel'
+              - 'ssmmessages:OpenControlChannel'
+              - 'ssmmessages:OpenDataChannel'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'ec2:DescribeInstances'
+              - 'ec2:DescribeInstanceStatus'
+              - 'ec2:DescribeInstanceAttribute'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'iam:ListRoleTags'
+              - 'iam:ListUserTags'
+            Resource: '*'
+      Roles:
+        - !Ref EC2Role
+  EC2AccessPolicy:
+    Type: 'AWS::IAM::Policy'
+    Condition: CreateRole
+    Properties:
+      PolicyName: !Sub '${System}-${Environment}-ec2-${ServiceApp}-ec2-policy'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'cloudwatch:DescribeAlarms'
+              - 'cloudwatch:GetMetricStatistics'
+            Resource: '*'
+            Effect: Allow
+          - Action:
+              - 'ec2:RunInstances'
+              - 'ec2:DescribeInstances'
+              - 'ec2:GetConsole*'
+              - 'ec2:StartInstances'
+              - 'ec2:StopInstances'
+              - 'ec2:RebootInstances'
+              - 'ec2:TerminateInstances'
+              - 'ec2:AssociateIamInstanceProfile'
+              - 'ec2:ReplaceIamInstanceProfileAssociation'
+              - 'ec2:DescribeVolumeAttribute'
+              - 'ec2:DescribeVolumes'
+              - 'ec2:DescribeVolumeStatus'
+              - 'ec2:CreateVolume'
+              - 'ec2:AttachVolume'
+              - 'ec2:DetachVolume'
+            Resource: '*'
+            Effect: Allow
+          - Action:
+              - 'iam:GetRole'
+              - 'iam:PassRole'
+            Resource:
+              - !GetAtt 
+                - EC2Role
+                - Arn
+            Effect: Allow
+            Condition:
+              StringEquals:
+                'iam:PassedToService': ec2.amazonaws.com
+      Roles:
+        - !Ref EC2Role
+  InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !If 
+          - CreateRole
+          - !Ref EC2Role
+          - !Ref InstanceRoleARN
+  EC2Instance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn:
+      - DataVolume
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds:
+        - !If 
+          - CreateSecurityGroup
+          - !Ref InstanceSecurityGroup
+          - !Ref SecurityGroup
+      AvailabilityZone: !Ref AvailabilityZone
+      SubnetId: !Ref SubnetId
+      KeyName: !If 
+        - UseKeyPair
+        - !Ref KeyName
+        - !Ref 'AWS::NoValue'
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: 'true'
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp2
+      Volumes: !If 
+        - AddEBSDataVolume
+        - - Device: !Ref DataVolumeDeviceName
+            VolumeId: !Ref DataVolume
+        - !Ref 'AWS::NoValue'
+      UserData: !If 
+        - AddEBSDataVolume
+        - !Base64 
+          'Fn::Join':
+            - |+
+
+            - - '#!/bin/bash -x'
+              - LINUX_OS=$(uname -a)
+              - >-
+                if [[ ("$LINUX_OS" == *"amzn2"*) ||  ("$LINUX_OS" == *"amzn1"*)
+                ]]; then
+              - '   sudo yum -y update'
+              - '   sudo yum -y install git'
+              - '   sudo yum -y install nvme-cli'
+              - '   sudo yum -y install xfsprogs'
+              - '   sudo yum -y install jq'
+              - '   sudo yum -y install curl'
+              - '   sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm'
+              - '   sudo systemctl enable amazon-ssm-agent'
+              - '   sudo systemctl start amazon-ssm-agent'
+              - 'elif [[ "$LINUX_OS" == *"Ubuntu"* ]]; then'
+              - '   sudo apt-get -y update'
+              - '   sudo apt-get -y -q install git'
+              - '   sudo apt-get -y -q install nvme-cli'
+              - '   sudo apt-get -y -q install xfsprogs'
+              - '   sudo apt-get -y -q install jq'
+              - '   sudo apt-get -y -q install curl'
+              - '   sudo snap install amazon-ssm-agent --classic'
+              - '   sudo snap start amazon-ssm-agent'
+              - fi
+              - '#------------------------------------------------'
+              - '# Install quickstart-linux-utilities to automate'
+              - '# the installation of AWS CloudFormation tools. '
+              - >-
+                # See:
+                https://aws.amazon.com/blogs/infrastructure-and-automation/introduction-to-quickstart-linux-utilities/
+              - '#------------------------------------------------'
+              - cd /tmp
+              - rm -rf /tmp/quickstart-linux-utilities
+              - >-
+                until git clone
+                https://github.com/aws-quickstart/quickstart-linux-utilities.git;
+                do echo "Retrying"; done
+              - cd /tmp/quickstart-linux-utilities
+              - source quickstart-cfn-tools.source
+              - '# updates the OS with the latest patches.'
+              - qs_update-os || qs_err
+              - '# installs Python and pip.'
+              - qs_bootstrap_pip || qs_err ' pip bootstrap failed '
+              - '# determines the OS type and then installs helper scripts.'
+              - qs_aws-cfn-bootstrap || qs_err ' cfn bootstrap failed '
+              - '# install the AWS CLI'
+              - >-
+                pip install awscli  &> /var/log/userdata.awscli_install.log ||
+                qs_err ' awscli install failed '
+              - >-
+                #-----------------------------------------------------------------------
+              - >-
+                # Mount EBS volume. Perform EBS NVMe block device mapping if
+                required, using the Volume ID.
+              - '# Code for this was taken from a blog and modified to work with'
+              - '# both NVMe and regular EBS volumes.'
+              - '# Author:  Laurent Godet'
+              - >-
+                # Blog: 
+                https://www.laurentgodet.com/2019/10/ebs-nvme-block-device-mapping-using-volume-ids/
+              - >-
+                # Code: 
+                https://github.com/lostick/nvme-mapping-launch-template/blob/master/terraform/templates/nvme-helper.sh
+              - >-
+                #-----------------------------------------------------------------------
+              - !Sub 'aws_block_device=${DataVolumeDeviceName}'
+              - !Sub 'mount_point=${DataVolumeMountPoint}'
+              - !Sub 'fs_type=${DataVolumeFilesystemType}'
+              - !Sub 'aws_region=${AWS::Region}'
+              - >-
+                instance_id=$(curl -s
+                http://169.254.169.254/latest/meta-data/instance-id)
+              - 'export AWS_DEFAULT_REGION=${aws_region}'
+              - '#--------------------------------'
+              - '# Wait for volume to be attached '
+              - '#--------------------------------'
+              - 'until [ ! -z "$aws_volume_id" ]; do'
+              - |2
+                    aws_volume_id=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values=$instance_id Name=attachment.device,Values=$aws_block_device --query 'Volumes[*].{Volume:Attachments[0].VolumeId,State:Attachments[0].State}' --output json | jq -r '.[]? | select(.State | contains("attached")) .Volume')
+              - '    echo "waiting for $aws_block_device volume to be attached..."'
+              - '    sleep 5'
+              - done
+              - '#-------------------------------------------------'
+              - '# Detect if a NVMe block device is being used and '
+              - '# symbolic link it with the AWS device alias.     '
+              - '#-------------------------------------------------'
+              - if ls -l /dev/nvme* &>/dev/null; then
+              - '    echo "set $aws_volume_id volume to nvme compliant format"'
+              - '    nvme_volume_id=vol$(echo $aws_volume_id | cut -c5-)'
+              - '    nvme_block_devices=$(nvme list -o json | jq -r ''.Devices | .[]? | .DevicePath'')'
+              - '    for nvme_block_device in $nvme_block_devices; do'
+              - '        if [[ $nvme_volume_id == $(nvme id-ctrl -v -o json $nvme_block_device | jq -r .sn) ]]; then'
+              - '            echo "found matching block for $nvme_volume_id: $nvme_block_device"'
+              - '            if [ ! -L "$aws_block_device" ]; then'
+              - '                echo "symlink alias $aws_block_device to block $nvme_block_device"'
+              - '                ln -s $nvme_block_device $aws_block_device'
+              - '            fi'
+              - '            break'
+              - '        fi'
+              - '    done'
+              - fi
+              - '#---------------'
+              - '# Format volume '
+              - '#---------------'
+              - echo "create a $fs_type file system for $aws_block_device"
+              - mkfs -t $fs_type $aws_block_device
+              - '#--------------'
+              - '# Mount volume '
+              - '#--------------'
+              - mkdir -p $mount_point
+              - echo "get volume uuid and mount it to $mount_point"
+              - volume_uuid=$(blkid -s UUID -o value $aws_block_device)
+              - mount UUID="$volume_uuid" $mount_point
+              - '#------------------------------'
+              - '# Configure auto-mount at boot '
+              - '#------------------------------'
+              - echo "add $volume_uuid to fstab"
+              - cp /etc/fstab /etc/fstab.orig
+              - >-
+                echo "UUID=$volume_uuid $mount_point $fs_type defaults,nofail 
+                0  2" | tee -a /etc/fstab
+              - >-
+                echo "Successfully mounted EBS volume $aws_block_device to
+                $mount_point."
+              - '# Signal final status back to CloudFormation'
+              - !Sub >
+                cfn-signal -e $(qs_status) --stack ${AWS::StackName} --resource
+                EC2Instance --region ${AWS::Region}
+        - !Ref 'AWS::NoValue'
+      Tags:
+        - Key: Name
+          Value: !Sub '${System}-${Environment}-ec2-${ServiceApp}'
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+  DataVolume:
+    Type: 'AWS::EC2::Volume'
+    Properties:
+      VolumeType: !Ref DataVolumeType
+      Size: !Ref DataVolumeSize
+      Encrypted: 'true'
+      AvailabilityZone: !Ref AvailabilityZone
+      Tags:
+        - Key: Name
+          Value: !Sub '${System}-${Environment}-ec2-${ServiceApp}-ebs-volume'
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+    DeletionPolicy: Delete
+  InstanceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Condition: CreateSecurityGroup
+    Properties:
+      GroupDescription: Security group for the EC2 instance
+      GroupName: bastion host security group
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+        - Key: Name
+          Value: 'bastion host security group'         
+      VpcId: !Ref VpcId
+  SecurityGroupIngressFromSelf:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: CreateSecurityGroup
+    DependsOn:
+      - InstanceSecurityGroup
+    Properties:
+      Description: >-
+        Ingress from other services, apps, or containers in the same security
+        group
+      GroupId: !GetAtt 
+        - InstanceSecurityGroup
+        - GroupId
+      IpProtocol: -1
+      SourceSecurityGroupId: !GetAtt 
+        - InstanceSecurityGroup
+        - GroupId
+  SecurityGroupIngressSSH:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: CreateSecurityGroup
+    DependsOn:
+      - InstanceSecurityGroup
+    Properties:
+      Description: Allow SSH ingress on port 22
+      GroupId: !GetAtt 
+        - InstanceSecurityGroup
+        - GroupId
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Ref SourceSSHLocation
+  InstanceRecoveryAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: >-
+        Trigger a recovery when system status check fails for 3 consecutive
+        periods.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_System
+      Statistic: Minimum
+      Period: '300'
+      EvaluationPeriods: '3'
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: '0'
+      AlarmActions:
+        - !Join 
+          - ''
+          - - 'arn:aws:automate:'
+            - !Ref 'AWS::Region'
+            - ':ec2:recover'
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2Instance
+  InstanceRebootAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: >-
+        Trigger a reboot when instance status check fails for 3 consecutive
+        periods.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_Instance
+      Statistic: Minimum
+      Period: '300'
+      EvaluationPeriods: '3'
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: '0'
+      AlarmActions:
+        - !Join 
+          - ''
+          - - 'arn:aws:automate:'
+            - !Ref 'AWS::Region'
+            - ':ec2:reboot'
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2Instance
+Outputs:
+  HostId:
+    Description: EC2 host instance ID
+    Value: !Ref EC2Instance
+  HostPrivateIpAddress:
+    Description: EC2 instance private IP address
+    Value: !GetAtt 
+      - EC2Instance
+      - PrivateIp
