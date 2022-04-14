@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: PTEIT Standard S3 Bucket v1.0
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Bucket Configuration
+        Parameters:
+          - BucketPurpose
+          - BucketVersioning
+          - SSEAlgorithm
+          - KMSMasterKeyID
+      - Label:
+          default: Standard Parameters
+        Parameters:
+          - System
+          - Environment
+          - AdminContactTag
+          - ServiceIdTag
+          - ServiceDataTag
+
+Parameters:
+  BucketPurpose:
+    Description: Concise name describing the bucket purpose.
+    Type: String
+    AllowedPattern: .+
+
+  BucketVersioning:
+    Description: Enable or disable bucket versioning.
+    Type: String
+    Default: Suspended
+    AllowedValues:
+      - Enabled
+      - Suspended
+
+  SSEAlgorithm:
+    Description: Server-side encryption algorithm to use for the default encryption.
+    Type: String
+    Default: 'aws:kms'
+    AllowedValues:
+      - AES256
+      - 'aws:kms'
+
+  KMSMasterKeyID:
+    Description: >-
+      KMS key ID or ARN of the CMK to use. Leave blank to use default S3 managed
+      CMK.
+    Type: String
+
+  System:
+    Description: 'System identifier. (Example: qc-pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - sbx
+      - dev
+      - ppr
+      - tst
+      - stg
+      - sup
+      - uat
+      - prd
+
+  AdminContactTag:
+    Description: 'Service/App point of contact. (Example: pteit.yms.infra@qualcomm.com)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceIdTag:
+    Description: 'Service/App identifier. (Example: pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceDataTag:
+    Description: 'Service/App properties. (Example: env=DEV)'
+    Type: String
+    AllowedPattern: .+
+
+Conditions:
+  UseCustomerManageCMK: !And 
+    - !Equals 
+      - !Ref SSEAlgorithm
+      - 'aws:kms'
+    - !Not 
+      - !Equals 
+        - !Ref KMSMasterKeyID
+        - ''
+
+Resources:
+  Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub '${System}-${Environment}-${AWS::Region}-s3-${BucketPurpose}'
+      AccessControl: BucketOwnerFullControl
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              KMSMasterKeyID: !If 
+                - UseCustomerManageCMK
+                - !Ref KMSMasterKeyID
+                - !Ref 'AWS::NoValue'
+              SSEAlgorithm: !Ref SSEAlgorithm
+      VersioningConfiguration:
+        Status: !Ref BucketVersioning
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+
+  BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt 
+                - Bucket
+                - Arn
+              - !Join 
+                - ''
+                - - !GetAtt 
+                    - Bucket
+                    - Arn
+                  - /*
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+
+Outputs:
+  BucketName:
+    Value: !Ref Bucket
+
+  BucketARN:
+    Value: !GetAtt 
+      - Bucket
+      - Arn
