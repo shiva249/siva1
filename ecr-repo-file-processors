@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon ECR - Container Repository ver 2.0.0
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Repository Configuration
+        Parameters:
+          - RepositoryName
+      - Label:
+          default: Standard Parameters
+        Parameters:
+          - System
+          - AdminContactTag
+          - ServiceIdTag
+          - ServiceDataTag
+
+Parameters:
+  RepositoryName:
+    Description: The container repository name
+    Type: String
+    AllowedPattern: .+
+
+  System:
+    Description: 'System identifier. (Example: qc-pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - sbx
+      - dev
+      - ppr
+      - tst
+      - stg
+      - sup
+      - uat
+      - prd
+
+  AdminContactTag:
+    Description: 'Service/App point of contact. (Example: pteit.yms.infra@qualcomm.com)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceIdTag:
+    Description: 'Service/App identifier. (Example: pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceDataTag:
+    Description: 'Service/App properties. (Example: env=DEV)'
+    Type: String
+    AllowedPattern: .+
+
+Resources:
+  ContainerRepository:
+    Type: 'AWS::ECR::Repository'
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      Tags:
+        - Key: admin_contact
+          Value: !Ref AdminContactTag
+        - Key: service_id
+          Value: !Ref ServiceIdTag
+        - Key: service_data
+          Value: !Ref ServiceDataTag
+        - Key: env
+          Value: !Ref Environment
+
+Outputs:
+  RepositoryName:
+    Value: !Ref ContainerRepository
+    Description: The container repository name
+
+  RepositoryArn:
+    Value: !GetAtt 
+      - ContainerRepository
+      - Arn
+    Description: The container repository ARN
