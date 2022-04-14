@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EKS - Cluster ver 1.0.0
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Cluster Configuration
+        Parameters:
+          - NameSuffix
+          - KubernetesVersion
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - VpcId
+          - Subnets
+      - Label:
+          default: Standard Parameters
+        Parameters:
+          - System
+          - Environment
+          - AdminContactTag
+          - ServiceIdTag
+          - ServiceDataTag
+
+Parameters:
+  VpcId:
+    Description: The VPC stack identifier
+    Type: 'AWS::EC2::VPC::Id'
+    
+  NameSuffix:
+    Description: Name suffix to distinguish between multiple cluster instances.
+    Type: String  
+
+  KubernetesVersion:
+    AllowedPattern: .+
+    Default: '1.14'
+    Type: String
+
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  System:
+    Description: 'System identifier. (Example: qc-pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  Environment:
+    Description: Environment
+    Type: String
+    AllowedValues:
+      - sbx
+      - dev
+      - tst
+      - ppr
+      - stg
+      - sup
+      - uat
+      - prd
+
+  AdminContactTag:
+    Description: 'Service/App point of contact. (Example: pteit.yms.infra@qualcomm.com)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceIdTag:
+    Description: 'Service/App identifier. (Example: pteit-yms)'
+    Type: String
+    AllowedPattern: .+
+
+  ServiceDataTag:
+    Description: 'Service/App properties. (Example: env=DEV)'
+    Type: String
+    AllowedPattern: .+
+
+Resources:
+  EKSCluster:
+    Type: 'AWS::EKS::Cluster'
+    Properties:
+      Name: !Sub '${System}-${Environment}-eks-cluster-${NameSuffix}'
+      Version: !Ref KubernetesVersion
+      RoleArn: !GetAtt 
+        - EKSServiceRole
+        - Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref ClusterSecurityGroup
+        SubnetIds: !Ref Subnets
+  
+  EKSServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description: Allows EKS to manage clusters on your behalf.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+              - eks.amazonaws.com
+          Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonEKSClusterPolicy'
+        - 'arn:aws:iam::aws:policy/AmazonEKSServicePolicy'
+        - 'arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy'
+        - 'arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy'
+
+  ClusterSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Cluster communication with worker nodes
+      VpcId: !Ref VpcId
+
+Outputs:
+  ClusterName:
+    Value: !Ref EKSCluster
+    Description: EKS Cluster Name
+
+  ClusterArn:
+    Value: !GetAtt 
+      - EKSCluster
+      - Arn
+    Description: EKS Cluster Arn
+
+  ClusterEndpoint:
+    Value: !GetAtt 
+      - EKSCluster
+      - Endpoint
+    Description: EKS Cluster Endpoint
+
+  ClusterSecurityGroupId:
+    Value: !GetAtt 
+      - EKSCluster
+      - ClusterSecurityGroupId
+    Description: >-
+      Security group for the cluster control plane communication with worker
+      nodes
+  CertificateAuthorityData:
+    Value: !GetAtt 
+      - EKSCluster
+      - CertificateAuthorityData
+    Description: The certificate-authority-data for the EKS cluster
